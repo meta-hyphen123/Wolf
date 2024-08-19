@@ -10,21 +10,16 @@ def assign_roles(players):
     num_players = len(players)
     roles = ['狼人', '狼人', '女巫', '预言家', '平民', '平民', '平民', '平民']
 
-    # Adjust roles based on the number of players
     if num_players < len(roles):
-        roles = roles[:num_players]  # Reduce roles
+        roles = roles[:num_players]
     else:
-        roles += ['平民'] * (num_players - len(roles))  # Add civilians
+        roles += ['平民'] * (num_players - len(roles))
 
     random.shuffle(roles)
     
     for i in range(num_players):
         players[i].role = roles[i]
         print(f"{players[i].name} 被分配为 {players[i].role}")
-
-def find_player_by_partial_name(players, partial_name):
-    matches = [p for p in players if partial_name in p.name and p.alive]
-    return matches[0] if len(matches) == 1 else None
 
 def get_valid_input(prompt, choices):
     while True:

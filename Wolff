@@ -1,10 +1,11 @@
 import random
 
 class Player:
-    def __init__(self, name):
+    def __init__(self, name, is_ai=False):
         self.name = name
         self.alive = True
         self.role = None
+        self.is_ai = is_ai
 
 def assign_roles(players):
     num_players = len(players)
@@ -32,6 +33,12 @@ def get_valid_input(prompt, choices):
         except ValueError:
             print("无效输入，请输入一个数字。")
 
+def show_roles(players):
+    print("游戏开始！以下是每个真人玩家的身份：")
+    for player in players:
+        if not player.is_ai:
+            print(f"{player.name} 的身份是 {player.role}")
+
 def werewolves_act(players):
     werewolves = [p for p in players if p.alive and p.role == '狼人']
     targets = [p for p in players if p.alive and p.role != '狼人']
@@ -40,15 +47,16 @@ def werewolves_act(players):
         return None
 
     print("狼人们，请讨论并选择一个玩家进行攻击...")
-    
-    if targets:
-        for i, target in enumerate(targets):
-            print(f"{i+1}: {target.name}")
-        victim_index = get_valid_input("输入要攻击的玩家编号: ", targets)
-        victim = targets[victim_index]
-    else:
-        print("没有可攻击的目标。")
-        return None
+
+    for i, target in enumerate(targets):
+        print(f"{i+1}: {target.name}")
+
+    for wolf in werewolves:
+        if wolf.is_ai:
+            victim = random.choice(targets)
+        else:
+            victim_index = get_valid_input("输入要攻击的玩家编号: ", targets)
+            victim = targets[victim_index]
 
     print(f"狼人攻击了 {victim.name}!")
     return victim
@@ -58,40 +66,55 @@ def witch_act(players, last_victim):
     if not witches:
         return
 
-    print(f"女巫，请决定是否使用解药救活 {last_victim.name} (Y/N)...")
-    save = input().strip().upper() == 'Y'
-    if save:
-        print(f"女巫救活了 {last_victim.name}!")
-        last_victim.alive = True
-    else:
-        print(f"{last_victim.name} 死亡。")
-        last_victim.alive = False
+    for witch in witches:
+        print(f"女巫 {witch.name}，请决定是否使用解药救活 {last_victim.name} (Y/N)...")
+        if witch.is_ai:
+            save = random.choice([True, False])
+        else:
+            save = input().strip().upper() == 'Y'
 
-    print("女巫，请决定是否使用毒药 (Y/N)...")
-    poison = input().strip().upper() == 'Y'
-    if poison:
-        targets = [p for p in players if p.alive and p.role != '女巫']
-        if targets:
-            for i, target in enumerate(targets):
-                print(f"{i+1}: {target.name}")
-            victim_index = get_valid_input("输入要毒死的玩家编号: ", targets)
-            victim = targets[victim_index]
-            print(f"女巫毒死了 {victim.name}!")
-            victim.alive = False
+        if save:
+            print(f"女巫救活了 {last_victim.name}!")
+            last_victim.alive = True
+        else:
+            print(f"{last_victim.name} 死亡。")
+            last_victim.alive = False
+
+        print("女巫，请决定是否使用毒药 (Y/N)...")
+        if witch.is_ai:
+            poison = random.choice([True, False])
+        else:
+            poison = input().strip().upper() == 'Y'
+
+        if poison:
+            targets = [p for p in players if p.alive and p.role != '女巫']
+            if targets:
+                for i, target in enumerate(targets):
+                    print(f"{i+1}: {target.name}")
+                victim_index = get_valid_input("输入要毒死的玩家编号: ", targets)
+                victim = targets[victim_index]
+                print(f"女巫毒死了 {victim.name}!")
+                victim.alive = False
 
 def seer_act(players):
     seers = [p for p in players if p.alive and p.role == '预言家']
     if not seers:
         return
 
-    print("预言家，请选择一个玩家进行查验...")
-    targets = [p for p in players if p.alive and p != seers[0]]
-    if targets:
-        for i, target in enumerate(targets):
-            print(f"{i+1}: {target.name}")
-        target_index = get_valid_input("输入要查验的玩家编号: ", targets)
-        target = targets[target_index]
-        print(f"{target.name} 的身份是: {target.role}")
+    for seer in seers:
+        print(f"预言家 {seer.name}，请选择一个玩家进行查验...")
+        targets = [p for p in players if p.alive and p != seer]
+        if targets:
+            for i, target in enumerate(targets):
+                print(f"{i+1}: {target.name}")
+
+            if seer.is_ai:
+                target = random.choice(targets)
+            else:
+                target_index = get_valid_input("输入要查验的玩家编号: ", targets)
+                target = targets[target_index]
+
+            print(f"{target.name} 的身份是: {target.role}")
 
 def voting(players):
     if not any(p.alive for p in players):
@@ -107,11 +130,17 @@ def voting(players):
             if targets:
                 for i, target in enumerate(targets):
                     print(f"{i+1}: {target.name}")
-                try:
-                    vote_index = get_valid_input("投票: ", targets)
-                    votes[targets[vote_index]] += 1
-                except ValueError:
-                    print("输入无效，跳过投票。")
+
+                if player.is_ai:
+                    vote_index = random.choice(range(len(targets)))
+                else:
+                    try:
+                        vote_index = get_valid_input("投票: ", targets)
+                    except ValueError:
+                        print("输入无效，跳过投票。")
+                        continue
+
+                votes[targets[vote_index]] += 1
 
     if votes:
         most_voted = max(votes, key=votes.get)
@@ -119,14 +148,23 @@ def voting(players):
         most_voted.alive = False
 
 def play_game():
-    num_players = int(input("请输入玩家总数: "))
+    num_players = int(input("请输入总玩家数: "))
+    num_real_players = int(input("请输入真人玩家数: "))
+    num_ai_players = num_players - num_real_players
 
     players = []
-    for i in range(num_players):
-        name = input(f"请输入玩家 {i+1} 的名字: ")
+    for i in range(num_real_players):
+        name = input(f"请输入真人玩家 {i+1} 的名字: ")
         players.append(Player(name))
 
+    for i in range(num_ai_players):
+        name = f"AI玩家{i+1}"
+        players.append(Player(name, is_ai=True))
+
+    random.shuffle(players)
+
     assign_roles(players)
+    show_roles(players)
 
     while any(p.alive for p in players):
         victim = werewolves_act(players)

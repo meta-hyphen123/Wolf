@@ -10,23 +10,32 @@ def assign_roles(players):
     num_players = len(players)
     roles = ['狼人', '狼人', '女巫', '预言家', '平民', '平民', '平民', '平民']
 
-    # 根据玩家人数调整角色数量
+    # Adjust roles based on the number of players
     if num_players < len(roles):
-        roles = roles[:num_players]  # 减少角色
+        roles = roles[:num_players]  # Reduce roles
     else:
-        roles += ['平民'] * (num_players - len(roles))  # 增加平民
+        roles += ['平民'] * (num_players - len(roles))  # Add civilians
 
     random.shuffle(roles)
     
-    for i in range(len(players)):
+    for i in range(num_players):
         players[i].role = roles[i]
         print(f"{players[i].name} 被分配为 {players[i].role}")
 
 def find_player_by_partial_name(players, partial_name):
     matches = [p for p in players if partial_name in p.name and p.alive]
-    if len(matches) == 1:
-        return matches[0]
-    return None
+    return matches[0] if len(matches) == 1 else None
+
+def get_valid_input(prompt, choices):
+    while True:
+        try:
+            choice = int(input(prompt).strip()) - 1
+            if 0 <= choice < len(choices):
+                return choice
+            else:
+                print("无效选择，请重新输入。")
+        except ValueError:
+            print("无效输入，请输入一个数字。")
 
 def werewolves_act(players):
     werewolves = [p for p in players if p.alive and p.role == '狼人']
@@ -37,17 +46,14 @@ def werewolves_act(players):
 
     print("狼人们，请讨论并选择一个玩家进行攻击...")
     
-    if any(w.is_human for w in werewolves):
+    if targets:
         for i, target in enumerate(targets):
             print(f"{i+1}: {target.name}")
-        victim_index = int(input("输入要攻击的玩家编号: ").strip()) - 1
-        if 0 <= victim_index < len(targets):
-            victim = targets[victim_index]
-        else:
-            print(f"{victim_index + 1} 不是一个有效编号。")
-            return werewolves_act(players)
+        victim_index = get_valid_input("输入要攻击的玩家编号: ", targets)
+        victim = targets[victim_index]
     else:
-        victim = random.choice(targets)
+        print("没有可攻击的目标。")
+        return None
 
     print(f"狼人攻击了 {victim.name}!")
     return victim
@@ -69,11 +75,12 @@ def witch_act(players, last_victim):
     print("女巫，请决定是否使用毒药 (Y/N)...")
     poison = input().strip().upper() == 'Y'
     if poison:
-        for i, target in enumerate([p for p in players if p.alive and p.role != '女巫']):
-            print(f"{i+1}: {target.name}")
-        victim_index = int(input("输入要毒死的玩家编号: ").strip()) - 1
-        if 0 <= victim_index < len(players):
-            victim = players[victim_index]
+        targets = [p for p in players if p.alive and p.role != '女巫']
+        if targets:
+            for i, target in enumerate(targets):
+                print(f"{i+1}: {target.name}")
+            victim_index = get_valid_input("输入要毒死的玩家编号: ", targets)
+            victim = targets[victim_index]
             print(f"女巫毒死了 {victim.name}!")
             victim.alive = False
 
@@ -83,11 +90,12 @@ def seer_act(players):
         return
 
     print("预言家，请选择一个玩家进行查验...")
-    for i, target in enumerate([p for p in players if p.alive and p != seers[0]]):
-        print(f"{i+1}: {target.name}")
-    target_index = int(input("输入要查验的玩家编号: ").strip()) - 1
-    if 0 <= target_index < len(players):
-        target = players[target_index]
+    targets = [p for p in players if p.alive and p != seers[0]]
+    if targets:
+        for i, target in enumerate(targets):
+            print(f"{i+1}: {target.name}")
+        target_index = get_valid_input("输入要查验的玩家编号: ", targets)
+        target = targets[target_index]
         print(f"{target.name} 的身份是: {target.role}")
 
 def voting(players):
@@ -97,21 +105,23 @@ def voting(players):
     print("现在开始投票环节...")
     votes = {p: 0 for p in players if p.alive}
 
-    for i, player in enumerate(players):
+    for player in players:
         if player.alive:
             print(f"玩家 {player.name}，请输入你要投票淘汰的玩家编号:")
-            for j, target in enumerate([p for p in players if p.alive and p != player]):
-                print(f"{j+1}: {target.name}")
-            try:
-                vote_index = int(input("投票: ").strip()) - 1
-                if 0 <= vote_index < len(players):
-                    votes[players[vote_index]] += 1
-            except ValueError:
-                print("输入无效，跳过投票。")
-    
-    most_voted = max(votes, key=votes.get)
-    print(f"{most_voted.name} 被投票淘汰出局。")
-    most_voted.alive = False
+            targets = [p for p in players if p.alive and p != player]
+            if targets:
+                for i, target in enumerate(targets):
+                    print(f"{i+1}: {target.name}")
+                try:
+                    vote_index = get_valid_input("投票: ", targets)
+                    votes[targets[vote_index]] += 1
+                except ValueError:
+                    print("输入无效，跳过投票。")
+
+    if votes:
+        most_voted = max(votes, key=votes.get)
+        print(f"{most_voted.name} 被投票淘汰出局。")
+        most_voted.alive = False
 
 def play_game():
     num_players = int(input("请输入玩家总数: "))

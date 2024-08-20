@@ -26,9 +26,9 @@ def assign_roles(num_players, num_real_players):
 
 def show_roles(players):
     console.print(Panel("游戏开始！", title="狼人杀"))
-    for player in players:
+    for i, player in enumerate(players):
         if not player.is_ai:
-            console.print(Panel(f"[bold yellow]你的身份是 [bold red]{player.role}[/bold red]", title="身份显示"))
+            console.print(Panel(f"[bold yellow]玩家{i+1} 的身份是 [bold red]{player.role}[/bold red]", title="身份显示"))
             Prompt.ask("按下 Enter 清除屏幕以继续")
             console.clear()
 
@@ -43,10 +43,10 @@ def werewolves_act(players):
     if any(not wolf.is_ai for wolf in werewolves):
         console.print(Panel("狼人请睁眼...", title="狼人环节"))
         time.sleep(2)
-        console.print("请选择一个玩家进行攻击...")
+        console.print("狼人请讨论并选择一个玩家进行攻击...")
         for i, target in enumerate(targets):
             console.print(f"{i+1}: 玩家{i+1}")
-        
+
         victim_index = int(Prompt.ask("输入要攻击的玩家编号: ")) - 1
         victim = targets[victim_index]
         console.clear()
@@ -134,6 +134,18 @@ def voting(players):
     time.sleep(2)
     console.clear()
 
+def check_winner(players):
+    alive_werewolves = any(p.alive and p.role == '狼人' for p in players)
+    alive_civilians = any(p.alive and p.role != '狼人' for p in players)
+    
+    if not alive_werewolves:
+        console.print("平民胜利！")
+        return True
+    if not alive_civilians:
+        console.print("狼人胜利！")
+        return True
+    return False
+
 def play_game():
     console.clear()
     num_players = int(Prompt.ask("请输入总玩家数"))
@@ -142,12 +154,12 @@ def play_game():
     players = assign_roles(num_players, num_real_players)
     show_roles(players)
 
-    while any(p.alive for p in players):
-        victim = werewolves_act(players)
-        witch_act(players, victim)
+    while any(p.alive for p in players) and not check_winner(players):
+        last_victim = werewolves_act(players)
+        witch_act(players, last_victim)
         seer_act(players)
         voting(players)
-
+    
     console.print("游戏结束！")
 
 play_game()

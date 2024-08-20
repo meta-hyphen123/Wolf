@@ -1,169 +1,145 @@
 import random
+import time
+from rich.console import Console
+from rich.prompt import Prompt
+from rich.panel import Panel
+
+console = Console()
 
 class Player:
-    def __init__(self, name, is_ai=False):
-        self.name = name
+    def __init__(self, role, is_ai=False):
         self.alive = True
-        self.role = None
+        self.role = role
         self.is_ai = is_ai
+        self.potions = {"save": 1, "poison": 1}
 
-def assign_roles(players):
-    num_players = len(players)
-    roles = ['狼人', '狼人', '女巫', '预言家', '平民', '平民', '平民', '平民']
-
-    if num_players < len(roles):
-        roles = roles[:num_players]
-    else:
-        roles += ['平民'] * (num_players - len(roles))
-
+def assign_roles(num_players, num_real_players):
+    roles = ['狼人', '狼人', '女巫', '预言家'] + ['平民'] * (num_players - 4)
     random.shuffle(roles)
     
+    players = []
     for i in range(num_players):
-        players[i].role = roles[i]
-        print(f"{players[i].name} 被分配为 {players[i].role}")
-
-def get_valid_input(prompt, choices):
-    while True:
-        try:
-            choice = int(input(prompt).strip()) - 1
-            if 0 <= choice < len(choices):
-                return choice
-            else:
-                print("无效选择，请重新输入。")
-        except ValueError:
-            print("无效输入，请输入一个数字。")
+        is_ai = i >= num_real_players
+        players.append(Player(roles[i], is_ai))
+    
+    return players
 
 def show_roles(players):
-    print("游戏开始！以下是每个真人玩家的身份：")
+    console.print(Panel("游戏开始！", title="狼人杀"))
     for player in players:
         if not player.is_ai:
-            print(f"{player.name} 的身份是 {player.role}")
+            console.print(Panel(f"[bold yellow]你的身份是 [bold red]{player.role}[/bold red]", title="身份显示"))
+            Prompt.ask("按下 Enter 清除屏幕以继续")
+            console.clear()
 
 def werewolves_act(players):
     werewolves = [p for p in players if p.alive and p.role == '狼人']
     targets = [p for p in players if p.alive and p.role != '狼人']
 
-    if not werewolves:
+    if not werewolves or all(wolf.is_ai for wolf in werewolves):
         return None
 
-    print("狼人们，请讨论并选择一个玩家进行攻击...")
-
-    for i, target in enumerate(targets):
-        print(f"{i+1}: {target.name}")
-
+    victim = None
     for wolf in werewolves:
-        if wolf.is_ai:
-            victim = random.choice(targets)
-        else:
-            victim_index = get_valid_input("输入要攻击的玩家编号: ", targets)
-            victim = targets[victim_index]
+        if not wolf.is_ai:
+            console.print(Panel("狼人请睁眼...", title="狼人环节"))
+            time.sleep(2)
+            console.print("请选择一个玩家进行攻击...")
+            for i, target in enumerate(targets):
+                console.print(f"{i+1}: {target.role}")
 
-    print(f"狼人攻击了 {victim.name}!")
+            victim_index = int(Prompt.ask("输入要攻击的玩家编号: ")) - 1
+            victim = targets[victim_index]
+            console.clear()
+            break
+
+    if victim:
+        victim.alive = False
+        console.print(f"狼人杀害了 {victim.role}!", style="bold red")
+        time.sleep(2)
+        console.clear()
     return victim
 
 def witch_act(players, last_victim):
-    witches = [p for p in players if p.alive and p.role == '女巫']
-    if not witches:
+    witch = next((p for p in players if p.alive and p.role == '女巫' and not p.is_ai), None)
+    if not witch or last_victim is None:
         return
 
-    for witch in witches:
-        print(f"女巫 {witch.name}，请决定是否使用解药救活 {last_victim.name} (Y/N)...")
-        if witch.is_ai:
-            save = random.choice([True, False])
-        else:
-            save = input().strip().upper() == 'Y'
+    console.print(Panel("女巫请睁眼...", title="女巫环节"))
+    time.sleep(2)
 
+    if witch.potions['save'] > 0 and last_victim.alive is False:
+        console.print(f"{last_victim.role} 被杀，你要救他吗？(Y/N)")
+        save = Prompt.ask("救活此玩家?", choices=["Y", "N"]).strip().upper() == 'Y'
         if save:
-            print(f"女巫救活了 {last_victim.name}!")
             last_victim.alive = True
+            witch.potions['save'] -= 1
+            console.print(f"女巫救活了 {last_victim.role}!", style="bold green")
         else:
-            print(f"{last_victim.name} 死亡。")
-            last_victim.alive = False
+            console.print(f"{last_victim.role} 仍然死亡。", style="bold red")
 
-        print("女巫，请决定是否使用毒药 (Y/N)...")
-        if witch.is_ai:
-            poison = random.choice([True, False])
-        else:
-            poison = input().strip().upper() == 'Y'
-
+    if witch.potions['poison'] > 0:
+        poison = Prompt.ask("你要毒谁吗？(Y/N)").strip().upper() == 'Y'
         if poison:
-            targets = [p for p in players if p.alive and p.role != '女巫']
-            if targets:
-                for i, target in enumerate(targets):
-                    print(f"{i+1}: {target.name}")
-                victim_index = get_valid_input("输入要毒死的玩家编号: ", targets)
-                victim = targets[victim_index]
-                print(f"女巫毒死了 {victim.name}!")
-                victim.alive = False
+            targets = [p for p in players if p.alive and p != witch]
+            for i, target in enumerate(targets):
+                console.print(f"{i+1}: {target.role}")
+            victim_index = int(Prompt.ask("输入要毒死的玩家编号: ")) - 1
+            victim = targets[victim_index]
+            victim.alive = False
+            witch.potions['poison'] -= 1
+            console.print(f"女巫毒死了 {victim.role}!", style="bold red")
+
+    time.sleep(2)
+    console.clear()
 
 def seer_act(players):
-    seers = [p for p in players if p.alive and p.role == '预言家']
-    if not seers:
+    seer = next((p for p in players if p.alive and p.role == '预言家' and not p.is_ai), None)
+    if not seer:
         return
 
-    for seer in seers:
-        print(f"预言家 {seer.name}，请选择一个玩家进行查验...")
-        targets = [p for p in players if p.alive and p != seer]
-        if targets:
-            for i, target in enumerate(targets):
-                print(f"{i+1}: {target.name}")
+    console.print(Panel("预言家请睁眼...", title="预言家环节"))
+    time.sleep(2)
+    console.print("请选择一个玩家进行查验...")
+    targets = [p for p in players if p.alive and p != seer]
+    for i, target in enumerate(targets):
+        console.print(f"{i+1}: {target.role}")
 
-            if seer.is_ai:
-                target = random.choice(targets)
-            else:
-                target_index = get_valid_input("输入要查验的玩家编号: ", targets)
-                target = targets[target_index]
+    target_index = int(Prompt.ask("输入要查验的玩家编号: ")) - 1
+    target = targets[target_index]
+    console.print(f"{target.role} 的身份是: {target.role}", style="bold yellow")
 
-            print(f"{target.name} 的身份是: {target.role}")
+    time.sleep(2)
+    console.clear()
 
 def voting(players):
-    if not any(p.alive for p in players):
-        return
-
-    print("现在开始投票环节...")
+    console.print(Panel("现在开始投票环节...", title="投票环节"))
+    time.sleep(2)
     votes = {p: 0 for p in players if p.alive}
 
     for player in players:
-        if player.alive:
-            print(f"玩家 {player.name}，请输入你要投票淘汰的玩家编号:")
+        if player.alive and not player.is_ai:
+            console.print(f"请输入你要投票淘汰的玩家编号:")
             targets = [p for p in players if p.alive and p != player]
-            if targets:
-                for i, target in enumerate(targets):
-                    print(f"{i+1}: {target.name}")
+            for i, target in enumerate(targets):
+                console.print(f"{i+1}: {target.role}")
 
-                if player.is_ai:
-                    vote_index = random.choice(range(len(targets)))
-                else:
-                    try:
-                        vote_index = get_valid_input("投票: ", targets)
-                    except ValueError:
-                        print("输入无效，跳过投票。")
-                        continue
+            vote_index = int(Prompt.ask("投票: ")) - 1
+            votes[targets[vote_index]] += 1
 
-                votes[targets[vote_index]] += 1
+    most_voted = max(votes, key=votes.get)
+    most_voted.alive = False
+    console.print(f"{most_voted.role} 被投票淘汰出局。", style="bold red")
 
-    if votes:
-        most_voted = max(votes, key=votes.get)
-        print(f"{most_voted.name} 被投票淘汰出局。")
-        most_voted.alive = False
+    time.sleep(2)
+    console.clear()
 
 def play_game():
-    num_players = int(input("请输入总玩家数: "))
-    num_real_players = int(input("请输入真人玩家数: "))
-    num_ai_players = num_players - num_real_players
+    console.clear()
+    num_players = int(Prompt.ask("请输入总玩家数"))
+    num_real_players = int(Prompt.ask("请输入真人玩家数"))
 
-    players = []
-    for i in range(num_real_players):
-        name = input(f"请输入真人玩家 {i+1} 的名字: ")
-        players.append(Player(name))
-
-    for i in range(num_ai_players):
-        name = f"AI玩家{i+1}"
-        players.append(Player(name, is_ai=True))
-
-    random.shuffle(players)
-
-    assign_roles(players)
+    players = assign_roles(num_players, num_real_players)
     show_roles(players)
 
     while any(p.alive for p in players):
@@ -173,6 +149,6 @@ def play_game():
         seer_act(players)
         voting(players)
 
-    print("游戏结束！")
+    console.print("游戏结束！")
 
 play_game()
